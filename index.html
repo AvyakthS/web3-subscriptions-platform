@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web3 Subscription Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js" type="application/javascript"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #1f2937, #111827);
+        }
+        .form-input {
+            background-color: #374151;
+            border: 1px solid #4b5563;
+            color: #f3f4f6;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            width: 100%;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5);
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .btn-primary {
+            background-color: #6366f1;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #4f46e5;
+        }
+        .btn-secondary {
+            background-color: #4b5563;
+            color: white;
+        }
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #6b7280;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s, bottom 0.3s;
+        }
+        .toast.show {
+            opacity: 1;
+            visibility: visible;
+            bottom: 2.5rem;
+        }
+    </style>
+</head>
+<body class="gradient-bg text-gray-200 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Main Container -->
+    <div class="w-full max-w-4xl mx-auto">
+        
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-2">Web3 Subscription Platform</h1>
+            <p class="text-lg text-gray-400">The decentralized "Stripe for Web3", powered by Polygon.</p>
+        </header>
+
+        <!-- Wallet Connection Area -->
+        <div id="wallet-area" class="flex justify-center mb-8">
+            <button id="connect-button" class="btn btn-primary">
+                <i data-lucide="wallet" class="w-5 h-5 mr-2"></i>
+                Connect Wallet
+            </button>
+            <div id="wallet-info" class="hidden items-center bg-gray-800 rounded-lg p-3">
+                <span id="wallet-address" class="font-mono text-sm mr-4"></span>
+                <button id="disconnect-button" class="text-gray-400 hover:text-white">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content Area (hidden until connected) -->
+        <main id="dapp-area" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- Creator Section -->
+            <div class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-2xl border border-gray-700">
+                <h2 class="text-2xl font-bold text-white mb-4">For Creators</h2>
+                <div id="creator-view">
+                    <!-- Form to create a plan -->
+                    <div id="create-plan-form">
+                        <p class="text-gray-400 mb-4">You don't have a subscription plan yet. Create one now.</p>
+                        <form id="plan-form" class="space-y-4">
+                            <div>
+                                <label for="beneficiary" class="block text-sm font-medium mb-1">Beneficiary Address</label>
+                                <input type="text" id="beneficiary" class="form-input" placeholder="0x..." required>
+                            </div>
+                            <div>
+                                <label for="token" class="block text-sm font-medium mb-1">Token Address</label>
+                                <input type="text" id="token" class="form-input" required>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="price" class="block text-sm font-medium mb-1">Price (e.g., USDC)</label>
+                                    <input type="number" id="price" class="form-input" placeholder="e.g., 5" step="0.01" required>
+                                </div>
+                                <div>
+                                    <label for="duration" class="block text-sm font-medium mb-1">Duration (Days)</label>
+                                    <input type="number" id="duration" class="form-input" placeholder="e.g., 30" required>
+                                </div>
+                            </div>
+                            <button type="submit" id="create-plan-button" class="btn btn-primary w-full">
+                                Create Plan
+                            </button>
+                        </form>
+                    </div>
+                    <!-- View to display existing plan -->
+                    <div id="view-plan-details" class="hidden space-y-3">
+                         <p class="text-gray-400">Your subscription plan is live.</p>
+                        <div class="font-mono text-sm bg-gray-900 p-3 rounded-lg">
+                            <p class="text-gray-400">Plan Address:</p>
+                            <p id="plan-address" class="text-indigo-400 break-all"></p>
+                        </div>
+                         <div class="font-mono text-sm bg-gray-900 p-3 rounded-lg">
+                            <p class="text-gray-400">Details:</p>
+                            <p id="plan-info" class="whitespace-pre-wrap"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Subscriber Section -->
+            <div class="bg-gray-800/50 backdrop-blur-sm p-6 rounded-2xl border border-gray-700">
+                <h2 class="text-2xl font-bold text-white mb-4">For Subscribers</h2>
+                <div id="subscriber-view" class="space-y-4">
+                    <div>
+                        <label for="lookup-address" class="block text-sm font-medium mb-1">Find a Plan</label>
+                        <input type="text" id="lookup-address" class="form-input" placeholder="Enter creator or plan address...">
+                        <button id="lookup-button" class="btn btn-secondary w-full mt-2" disabled>
+                            <i data-lucide="search" class="w-5 h-5 mr-2"></i>
+                            Find Plan
+                        </button>
+                    </div>
+                    
+                    <div id="subscriber-plan-details" class="hidden space-y-4 pt-4 border-t border-gray-700">
+                        <div id="sub-plan-info" class="font-mono text-sm bg-gray-900 p-3 rounded-lg break-words"></div>
+                        <div id="subscription-status" class="text-center font-semibold p-3 rounded-lg"></div>
+                        
+                        <div id="action-buttons" class="flex flex-col sm:flex-row gap-2">
+                            <button id="approve-button" class="btn btn-secondary flex-1">
+                                <span class="button-text">1. Approve Token</span>
+                                <i data-lucide="loader" class="spinner w-5 h-5 ml-2 hidden"></i>
+                            </button>
+                            <button id="subscribe-button" class="btn btn-primary flex-1">
+                                <span class="button-text">2. Subscribe</span>
+                                <i data-lucide="loader" class="spinner w-5 h-5 ml-2 hidden"></i>
+                            </button>
+                             <button id="renew-button" class="btn btn-primary w-full hidden">
+                                <span class="button-text">Renew Subscription</span>
+                                <i data-lucide="loader" class="spinner w-5 h-5 ml-2 hidden"></i>
+                            </button>
+                            <button id="cancel-button" class="btn btn-secondary w-full hidden bg-red-800/50 border-red-700 hover:bg-red-700">
+                                <span class="button-text">Cancel Subscription</span>
+                                <i data-lucide="loader" class="spinner w-5 h-5 ml-2 hidden"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">
+        <div id="toast-icon"></div>
+        <p id="toast-message"></p>
+        <a id="toast-link" href="#" target="_blank" class="ml-2 text-indigo-400 hover:text-indigo-300 underline">View Tx</a>
+    </div>
+
+    <script>
+        // --- LUCIDE ICONS ---
+        lucide.createIcons();
+
+        // --- CONSTANTS ---
+        const AMOY_CHAIN_ID = '0x13882'; // 80002 in hex
+        const SUBSCRIPTION_MANAGER_ADDRESS = '0x79F33e852F0Ebc7cf17f97a2fAbbc5c1c14fbD56';
+        
+        // --- ABIs ---
+        const SUBSCRIPTION_MANAGER_ABI = [
+            "function createSubscriptionPlan(address _token, uint256 _price, uint256 _duration, address _beneficiary)",
+            "function creatorToPlan(address creator) view returns (address)",
+            "event PlanCreated(address indexed creator, address indexed planAddress, address token, uint256 price, uint256 duration)"
+        ];
+        const SUBSCRIPTION_PLAN_ABI = [
+            "function subscribe()",
+            "function cancel()",
+            "function isSubscriptionActive(address _user) view returns (bool)",
+            "function subscriptions(address _user) view returns (uint256 expiry, bool active)",
+            "function owner() view returns (address)",
+            "function token() view returns (address)",
+            "function price() view returns (uint256)",
+            "function duration() view returns (uint256)",
+            "function beneficiary() view returns (address)"
+        ];
+        const ERC20_ABI = [
+            "function approve(address spender, uint256 amount) returns (bool)",
+            "function allowance(address owner, address spender) view returns (uint256)",
+            "function decimals() view returns (uint8)"
+        ];
+
+        // --- STATE VARIABLES ---
+        let provider;
+        let signer;
+        let userAddress;
+        let subscriptionManagerContract;
+
+        // --- UI ELEMENTS ---
+        const connectButton = document.getElementById('connect-button');
+        const walletArea = document.getElementById('wallet-area');
+        const walletInfo = document.getElementById('wallet-info');
+        const walletAddressSpan = document.getElementById('wallet-address');
+        const disconnectButton = document.getElementById('disconnect-button');
+        const dappArea = document.getElementById('dapp-area');
+        
+        // Creator UI
+        const createPlanForm = document.getElementById('create-plan-form');
+        const viewPlanDetails = document.getElementById('view-plan-details');
+        const planForm = document.getElementById('plan-form');
+        const beneficiaryInput = document.getElementById('beneficiary');
+        const tokenInput = document.getElementById('token');
+        const priceInput = document.getElementById('price');
+        const durationInput = document.getElementById('duration');
+        const createPlanButton = document.getElementById('create-plan-button');
+        const planAddressSpan = document.getElementById('plan-address');
+        const planInfoSpan = document.getElementById('plan-info');
+
+        // Subscriber UI
+        const lookupAddressInput = document.getElementById('lookup-address');
+        const lookupButton = document.getElementById('lookup-button');
+        const subscriberPlanDetails = document.getElementById('subscriber-plan-details');
+        const subPlanInfo = document.getElementById('sub-plan-info');
+        const subscriptionStatus = document.getElementById('subscription-status');
+        const actionButtons = document.getElementById('action-buttons');
+        const approveButton = document.getElementById('approve-button');
+        const subscribeButton = document.getElementById('subscribe-button');
+        const renewButton = document.getElementById('renew-button');
+        const cancelButton = document.getElementById('cancel-button');
+
+        // Toast
+        const toast = document.getElementById('toast');
+        const toastIcon = document.getElementById('toast-icon');
+        const toastMessage = document.getElementById('toast-message');
+        const toastLink = document.getElementById('toast-link');
+
+        // --- CORE FUNCTIONS ---
+
+        async function connectWallet() {
+            if (typeof window.ethereum === 'undefined') {
+                showToast('error', 'MetaMask is not installed!');
+                return;
+            }
+
+            try {
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                
+                const network = await provider.getNetwork();
+                if(network.chainId !== 80002) { // 80002 is Amoy's chainId
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: AMOY_CHAIN_ID }],
+                        });
+                        provider = new ethers.providers.Web3Provider(window.ethereum);
+                    } catch (switchError) {
+                        if (switchError.code === 4902) {
+                            await addAmoyNetwork();
+                        } else {
+                            showToast('error', 'Failed to switch to Amoy network.');
+                            return;
+                        }
+                    }
+                }
+                
+                signer = provider.getSigner();
+                userAddress = await signer.getAddress();
+
+                subscriptionManagerContract = new ethers.Contract(SUBSCRIPTION_MANAGER_ADDRESS, SUBSCRIPTION_MANAGER_ABI, signer);
+
+                updateUIOnConnect();
+                checkCreatorStatus();
+
+            } catch (error) {
+                console.error("Connection failed:", error);
+                showToast('error', 'Wallet connection failed.');
+            }
+        }
+        
+        async function addAmoyNetwork() {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: AMOY_CHAIN_ID,
+                        chainName: 'Polygon Amoy',
+                        nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
+                        rpcUrls: ['https://rpc-amoy.polygon.technology/'],
+                        blockExplorerUrls: ['https://amoy.polygonscan.com/'],
+                    }],
+                });
+            } catch (addError) {
+                showToast('error', 'Failed to add Amoy network to MetaMask.');
+            }
+        }
+
+        function disconnectWallet() {
+            provider = null;
+            signer = null;
+            userAddress = null;
+            updateUIOnDisconnect();
+        }
+
+        // --- UI UPDATE FUNCTIONS ---
+
+        function updateUIOnConnect() {
+            connectButton.classList.add('hidden');
+            walletInfo.classList.remove('hidden');
+            walletInfo.classList.add('flex');
+            walletAddressSpan.textContent = `${userAddress.substring(0, 6)}...${userAddress.substring(userAddress.length - 4)}`;
+            dappArea.classList.remove('hidden');
+            beneficiaryInput.value = userAddress;
+        }
+
+        function updateUIOnDisconnect() {
+            connectButton.classList.remove('hidden');
+            walletInfo.classList.add('hidden');
+            dappArea.classList.add('hidden');
+            subscriberPlanDetails.classList.add('hidden');
+            lookupAddressInput.value = '';
+        }
+        
+        function setButtonLoading(button, isLoading) {
+            const buttonText = button.querySelector('.button-text');
+            const spinner = button.querySelector('.spinner');
+            if (isLoading) {
+                button.disabled = true;
+                if (buttonText) buttonText.classList.add('hidden');
+                if (spinner) spinner.classList.remove('hidden');
+            } else {
+                button.disabled = false;
+                if (buttonText) buttonText.classList.remove('hidden');
+                if (spinner) spinner.classList.add('hidden');
+            }
+        }
+
+        // --- CREATOR LOGIC ---
+
+        async function checkCreatorStatus() {
+            try {
+                const planAddress = await subscriptionManagerContract.creatorToPlan(userAddress);
+                if (planAddress !== ethers.constants.AddressZero) {
+                    displayPlanDetails(planAddress);
+                } else {
+                    createPlanForm.classList.remove('hidden');
+                    viewPlanDetails.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error("Error checking creator status:", error);
+                showToast('error', 'Could not check creator status.');
+            }
+        }
+        
+        async function handleCreatePlan(e) {
+            e.preventDefault();
+            const beneficiary = beneficiaryInput.value;
+            const token = tokenInput.value;
+            const price = priceInput.value;
+            const duration = durationInput.value;
+
+            if (!ethers.utils.isAddress(beneficiary) || !ethers.utils.isAddress(token)) {
+                showToast('error', 'Invalid address format.');
+                return;
+            }
+            
+            setButtonLoading(createPlanButton, true);
+            
+            try {
+                const tokenContract = new ethers.Contract(token, ERC20_ABI, provider);
+                const decimals = await tokenContract.decimals();
+                const priceInSmallestUnit = ethers.utils.parseUnits(price, decimals);
+                const durationInSeconds = duration * 24 * 60 * 60;
+                
+                const tx = await subscriptionManagerContract.createSubscriptionPlan(
+                    token,
+                    priceInSmallestUnit,
+                    durationInSeconds,
+                    beneficiary
+                );
+                showToast('pending', 'Creating plan...', tx.hash);
+                await tx.wait();
+                showToast('success', 'Plan created successfully!', tx.hash);
+                checkCreatorStatus();
+            } catch (error) {
+                console.error("Plan creation failed:", error);
+                showToast('error', 'Plan creation failed.');
+            } finally {
+                setButtonLoading(createPlanButton, false);
+            }
+        }
+
+        async function displayPlanDetails(planAddress) {
+            createPlanForm.classList.add('hidden');
+            viewPlanDetails.classList.remove('hidden');
+            planAddressSpan.textContent = planAddress;
+
+            const planContract = new ethers.Contract(planAddress, SUBSCRIPTION_PLAN_ABI, provider);
+            const tokenAddr = await planContract.token();
+            const price = await planContract.price();
+            const duration = await planContract.duration();
+
+            const tokenContract = new ethers.Contract(tokenAddr, ERC20_ABI, provider);
+            const decimals = await tokenContract.decimals();
+
+            planInfoSpan.textContent = 
+                `Token: ${tokenAddr}\n` +
+                `Price: ${ethers.utils.formatUnits(price, decimals)} Tokens\n` +
+                `Duration: ${duration / (24 * 60 * 60)} days`;
+        }
+
+        // --- SUBSCRIBER LOGIC ---
+        
+        // **** FIX 1 of 2: This is the updated, more robust lookup function ****
+        async function handleLookupPlan() {
+            const address = lookupAddressInput.value.trim();
+            if (!ethers.utils.isAddress(address)) return;
+            
+            setButtonLoading(lookupButton, true);
+            subscriberPlanDetails.classList.add('hidden');
+            
+            let planAddress = ethers.constants.AddressZero;
+
+            try {
+                // First, try to see if the address is a creator address
+                const potentialPlanAddress = await subscriptionManagerContract.creatorToPlan(address);
+
+                if (potentialPlanAddress !== ethers.constants.AddressZero) {
+                    planAddress = potentialPlanAddress;
+                } else {
+                    // If not, assume the address IS the plan address and do a simple check
+                    const potentialPlanContract = new ethers.Contract(address, SUBSCRIPTION_PLAN_ABI, provider);
+                    await potentialPlanContract.owner(); // This will fail if it's not a valid plan contract
+                    planAddress = address;
+                }
+
+                if (planAddress !== ethers.constants.AddressZero) {
+                    await displaySubscriberPlanDetails(planAddress);
+                } else {
+                    throw new Error("Address is not a creator or a valid plan.");
+                }
+
+            } catch (error) {
+                // **** FIX 2 of 2: Better error logging and user feedback ****
+                console.error("--- DETAILED LOOKUP ERROR ---", error);
+                showToast('error', 'Plan not found. Check address and console for details.');
+            } finally {
+                setButtonLoading(lookupButton, false);
+                // Re-check disabled state after lookup
+                lookupAddressInput.dispatchEvent(new Event('input'));
+            }
+        }
+
+
+        async function displaySubscriberPlanDetails(planAddress) {
+            const planContract = new ethers.Contract(planAddress, SUBSCRIPTION_PLAN_ABI, signer);
+            const owner = await planContract.owner();
+            const tokenAddr = await planContract.token();
+            const price = await planContract.price();
+            const duration = await planContract.duration();
+            
+            const tokenContract = new ethers.Contract(tokenAddr, ERC20_ABI, provider);
+            const decimals = await tokenContract.decimals();
+            const tokenSymbol = "USDC"; // Hardcoded for this UI, can be dynamic
+            
+            approveButton.querySelector('.button-text').textContent = `1. Approve ${tokenSymbol}`;
+            
+            subPlanInfo.textContent = 
+                `Plan Address: ${planAddress}\n` +
+                `Creator: ${owner}\n` +
+                `Price: ${ethers.utils.formatUnits(price, decimals)} ${tokenSymbol} per ${duration / (24 * 60 * 60)} days`;
+                
+            subscriberPlanDetails.classList.remove('hidden');
+            await checkSubscriptionStatus(planContract);
+        }
+        
+        async function checkSubscriptionStatus(planContract) {
+            approveButton.classList.remove('hidden');
+            subscribeButton.classList.remove('hidden');
+            renewButton.classList.add('hidden');
+            cancelButton.classList.add('hidden');
+
+            const isActive = await planContract.isSubscriptionActive(userAddress);
+            if(isActive) {
+                const sub = await planContract.subscriptions(userAddress);
+                const expiryDate = new Date(sub.expiry * 1000).toLocaleString();
+                subscriptionStatus.textContent = `Subscribed until: ${expiryDate}`;
+                subscriptionStatus.className = 'text-center font-semibold p-3 rounded-lg bg-green-900/50 text-green-300';
+                
+                approveButton.classList.add('hidden');
+                subscribeButton.classList.add('hidden');
+                cancelButton.classList.remove('hidden');
+            } else {
+                 const sub = await planContract.subscriptions(userAddress);
+                 if (sub.expiry > 0) {
+                    subscriptionStatus.textContent = 'Your subscription has expired.';
+                    subscriptionStatus.className = 'text-center font-semibold p-3 rounded-lg bg-yellow-900/50 text-yellow-300';
+                    renewButton.classList.remove('hidden');
+                    approveButton.classList.add('hidden');
+                    subscribeButton.classList.add('hidden');
+                 } else {
+                    subscriptionStatus.textContent = 'You are not subscribed to this plan.';
+                    subscriptionStatus.className = 'text-center font-semibold p-3 rounded-lg bg-gray-700 text-gray-300';
+                    updateApprovalStatus(planContract);
+                 }
+            }
+        }
+
+        async function updateApprovalStatus(planContract) {
+            const price = await planContract.price();
+            const tokenAddr = await planContract.token();
+            const tokenContract = new ethers.Contract(tokenAddr, ERC20_ABI, provider);
+            const allowance = await tokenContract.allowance(userAddress, planContract.address);
+
+            if (allowance.gte(price)) {
+                approveButton.disabled = true;
+                approveButton.querySelector('.button-text').textContent = 'Token Approved';
+                subscribeButton.disabled = false;
+            } else {
+                approveButton.disabled = false;
+                subscribeButton.disabled = true;
+            }
+        }
+
+        async function handleApprove() {
+            const planAddress = subscriberPlanDetails.querySelector('#sub-plan-info').textContent.split('\n')[0].split(': ')[1];
+            const planContract = new ethers.Contract(planAddress, SUBSCRIPTION_PLAN_ABI, signer);
+            const tokenAddr = await planContract.token();
+            const tokenContract = new ethers.Contract(tokenAddr, ERC20_ABI, signer);
+            const price = await planContract.price();
+
+            setButtonLoading(approveButton, true);
+            try {
+                const tx = await tokenContract.approve(planAddress, price);
+                showToast('pending', 'Approving token...', tx.hash);
+                await tx.wait();
+                showToast('success', 'Approval successful!', tx.hash);
+                updateApprovalStatus(planContract);
+            } catch (error) {
+                console.error("Approval failed:", error);
+                showToast('error', 'Approval failed.');
+            } finally {
+                setButtonLoading(approveButton, false);
+            }
+        }
+
+        async function handleSubscribe(isRenewal = false) {
+             const planAddress = subscriberPlanDetails.querySelector('#sub-plan-info').textContent.split('\n')[0].split(': ')[1];
+             const planContract = new ethers.Contract(planAddress, SUBSCRIPTION_PLAN_ABI, signer);
+             
+             const buttonToLoad = isRenewal ? renewButton : subscribeButton;
+             setButtonLoading(buttonToLoad, true);
+             try {
+                const tx = await planContract.subscribe();
+                showToast('pending', 'Subscribing...', tx.hash);
+                await tx.wait();
+                showToast('success', 'Subscription successful!', tx.hash);
+                await checkSubscriptionStatus(planContract);
+             } catch(error) {
+                console.error("Subscription failed:", error);
+                showToast('error', 'Subscription failed.');
+             } finally {
+                setButtonLoading(buttonToLoad, false);
+             }
+        }
+        
+        async function handleCancel() {
+             const planAddress = subscriberPlanDetails.querySelector('#sub-plan-info').textContent.split('\n')[0].split(': ')[1];
+             const planContract = new ethers.Contract(planAddress, SUBSCRIPTION_PLAN_ABI, signer);
+             setButtonLoading(cancelButton, true);
+             try {
+                const tx = await planContract.cancel();
+                showToast('pending', 'Cancelling subscription...', tx.hash);
+                await tx.wait();
+                showToast('success', 'Subscription cancelled!', tx.hash);
+                await checkSubscriptionStatus(planContract);
+             } catch(error) {
+                console.error("Cancellation failed:", error);
+                showToast('error', 'Cancellation failed.');
+             } finally {
+                setButtonLoading(cancelButton, false);
+             }
+        }
+
+        function showToast(type, message, txHash = null) {
+            toast.className = 'toast show';
+            toastMessage.textContent = message;
+            
+            if (type === 'success') {
+                toast.classList.add('bg-green-800/80', 'border', 'border-green-600', 'text-green-200');
+                toastIcon.innerHTML = `<i data-lucide="check-circle" class="w-6 h-6 text-green-300"></i>`;
+            } else if (type === 'error') {
+                toast.classList.add('bg-red-800/80', 'border', 'border-red-600', 'text-red-200');
+                toastIcon.innerHTML = `<i data-lucide="x-circle" class="w-6 h-6 text-red-300"></i>`;
+            } else {
+                toast.classList.add('bg-blue-800/80', 'border', 'border-blue-600', 'text-blue-200');
+                toastIcon.innerHTML = `<i data-lucide="loader" class="spinner w-6 h-6 text-blue-300"></i>`;
+            }
+            lucide.createIcons();
+
+            if (txHash) {
+                toastLink.href = `https://amoy.polygonscan.com/tx/${txHash}`;
+                toastLink.classList.remove('hidden');
+            } else {
+                toastLink.classList.add('hidden');
+            }
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 5000);
+        }
+
+        // --- EVENT LISTENERS ---
+        connectButton.addEventListener('click', connectWallet);
+        disconnectButton.addEventListener('click', disconnectWallet);
+        planForm.addEventListener('submit', handleCreatePlan);
+        lookupButton.addEventListener('click', handleLookupPlan);
+        approveButton.addEventListener('click', handleApprove);
+        subscribeButton.addEventListener('click', () => handleSubscribe(false));
+        renewButton.addEventListener('click', () => handleSubscribe(true));
+        cancelButton.addEventListener('click', handleCancel);
+
+        lookupAddressInput.addEventListener('input', (e) => {
+            const address = e.target.value;
+            lookupButton.disabled = !ethers.utils.isAddress(address);
+        });
+
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                if (accounts.length > 0) {
+                    connectWallet();
+                } else {
+                    disconnectWallet();
+                }
+            });
+            window.ethereum.on('chainChanged', () => {
+                window.location.reload();
+            });
+        }
+    </script>
+
+</body>
+</html>
+
